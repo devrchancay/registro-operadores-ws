@@ -1,7 +1,10 @@
+require("dotenv").config();
+
 const express = require("express");
 const { Client, LocalAuth } = require("whatsapp-web.js");
 const qrcode = require("qrcode");
 const qrcodeTerminal = require("qrcode-terminal");
+const db = require("./models");
 
 const app = express();
 app.use(express.json());
@@ -9,7 +12,25 @@ app.use(express.json());
 let latestQR = null;
 let isReady = false;
 
-const FORWARD_URL = process.env.FORWARD_URL || "http://localhost:4000/webhook";
+const ACCIONES = {
+  "marcar entrada": "entrada",
+  "marcar salida": "salida",
+  "inicio almuerzo": "inicio_almuerzo",
+  "fin almuerzo": "fin_almuerzo",
+};
+
+function parseMessage(body) {
+  const decoded = Buffer.from(body, "base64").toString("utf-8");
+  const data = JSON.parse(decoded);
+
+  const tipo = ACCIONES[data.accion.toLowerCase()];
+  if (!tipo) return null;
+
+  const [dia, mes, anio] = data.fecha.split("/");
+  const hora = new Date(`${anio}-${mes}-${dia}T${data.hora}`);
+
+  return { tipo, hora, lat: data.lat, lng: data.lng };
+}
 
 const client = new Client({
   authStrategy: new LocalAuth({
@@ -42,46 +63,40 @@ client.on("ready", () => {
 });
 
 client.on("message", async (message) => {
-  // Ignorar mensajes de grupos y de estado
   if (message.from === "status@broadcast") return;
   if (message.fromMe) return;
 
-  const payload = {
-    from: message.from,
-    body: message.body,
-    timestamp: message.timestamp,
-    type: message.type,
-  };
-
   console.log(`Mensaje recibido de ${message.from}: ${message.body}`);
 
+  let data;
   try {
-    const response = await fetch(FORWARD_URL, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
+    data = parseMessage(message.body);
+  } catch {
+    return;
+  }
+
+  if (!data) return;
+
+  const number = message.from.replace("@c.us", "");
+
+  try {
+    await db.Registro.create({
+      number,
+      tipo_registro: data.tipo,
+      hora: data.hora,
+      ubicacion: { type: "Point", coordinates: [data.lng, data.lat] },
     });
 
-    const data = await response.json();
-    console.log(`Respuesta del endpoint:`, data);
-
-    // Reaccionar al mensaje con check verde si el webhook respondio ok
     await message.react("\u2705");
-
-    // Si el endpoint devuelve un reply, responder al remitente
-    if (data.reply) {
-      await client.sendMessage(message.from, data.reply);
-      console.log(`Respuesta enviada a ${message.from}: ${data.reply}`);
-    }
+    console.log(`Registro guardado: ${number} - ${data.tipo}`);
   } catch (error) {
-    console.error(`Error al enviar al endpoint: ${error.message}`);
+    console.error(`Error guardando registro: ${error.message}`);
     await message.react("\u274c");
   }
 });
 
 client.initialize();
 
-// Endpoint para ver el QR en el navegador
 app.get("/qr", async (req, res) => {
   if (!latestQR) {
     return res.send("No hay un QR disponible. Espera que el cliente lo genere.");
@@ -102,12 +117,21 @@ app.get("/qr", async (req, res) => {
   }
 });
 
-// Endpoint de health check
 app.get("/health", (req, res) => {
   res.json({ status: "ok", whatsapp: isReady ? "connected" : "disconnected" });
 });
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-  console.log(`Servidor corriendo en http://localhost:${PORT}`);
-});
+
+db.sequelize
+  .authenticate()
+  .then(() => {
+    console.log("Conexion a MySQL establecida");
+    app.listen(PORT, () => {
+      console.log(`Servidor corriendo en http://localhost:${PORT}`);
+    });
+  })
+  .catch((err) => {
+    console.error("Error conectando a MySQL:", err.message);
+    process.exit(1);
+  });
