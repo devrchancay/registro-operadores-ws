@@ -1,0 +1,19 @@
+{
+  "name": "registro-biometrico-ws",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "postinstall": "patch-package"
+  },
+  "keywords": [],
+  "author": "Ramón Chancay",
+  "license": "ISC",
+  "dependencies": {
+    "express": "^5.1.0",
+    "patch-package": "^8.0.1",
+    "qrcode": "^1.5.4",
+    "qrcode-terminal": "^0.12.0",
+    "whatsapp-web.js": "1.34.6"
+  }
+}
