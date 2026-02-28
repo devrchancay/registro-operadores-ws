@@ -87,7 +87,7 @@ client.on("message", async (message) => {
     return;
   }
 
-  const number = message.from.replace("@c.us", "");
+  const number = "+" + message.from.replace("@c.us", "");
 
   try {
     await db.Registro.create({
