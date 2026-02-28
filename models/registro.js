@@ -19,6 +19,14 @@ module.exports = (sequelize, DataTypes) => {
         type: DataTypes.DATE,
         allowNull: false,
       },
+      latitud: {
+        type: DataTypes.DECIMAL(10, 7),
+        allowNull: false,
+      },
+      longitud: {
+        type: DataTypes.DECIMAL(10, 7),
+        allowNull: false,
+      },
       ubicacion: {
         type: DataTypes.GEOMETRY("POINT", 4326),
         allowNull: false,

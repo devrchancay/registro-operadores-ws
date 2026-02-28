@@ -19,7 +19,13 @@ const ACCIONES = {
   "fin almuerzo": "fin_almuerzo",
 };
 
+function isBase64(str) {
+  return /^[A-Za-z0-9+/]+=*$/.test(str) && str.length % 4 === 0;
+}
+
 function parseMessage(body) {
+  if (!isBase64(body)) return null;
+
   const decoded = Buffer.from(body, "base64").toString("utf-8");
   const data = JSON.parse(decoded);
 
@@ -72,10 +78,14 @@ client.on("message", async (message) => {
   try {
     data = parseMessage(message.body);
   } catch {
+    await message.react("\u274c");
     return;
   }
 
-  if (!data) return;
+  if (!data) {
+    await message.react("\u274c");
+    return;
+  }
 
   const number = message.from.replace("@c.us", "");
 
@@ -84,6 +94,8 @@ client.on("message", async (message) => {
       number,
       tipo_registro: data.tipo,
       hora: data.hora,
+      latitud: data.lat,
+      longitud: data.lng,
       ubicacion: { type: "Point", coordinates: [data.lng, data.lat] },
     });
 
