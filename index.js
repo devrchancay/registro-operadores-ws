@@ -23,10 +23,19 @@ function isBase64(str) {
   return /^[A-Za-z0-9+/]+=*$/.test(str) && str.length % 4 === 0;
 }
 
-function parseMessage(body) {
-  if (!isBase64(body)) return null;
+function extractBase64(body) {
+  const tokens = body.split(/\s+/);
+  for (const token of tokens) {
+    if (isBase64(token) && token.length >= 16) return token;
+  }
+  return null;
+}
 
-  const decoded = Buffer.from(body, "base64").toString("utf-8");
+function parseMessage(body) {
+  const base64Str = extractBase64(body);
+  if (!base64Str) return null;
+
+  const decoded = Buffer.from(base64Str, "base64").toString("utf-8");
   const data = JSON.parse(decoded);
 
   const tipo = ACCIONES[data.accion.toLowerCase()];
